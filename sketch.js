@@ -4,6 +4,10 @@ let label = "";
 let confidence = 0;
 let lastRedirect = 0;
 const redirectDelay = 5000; // ms
+let allResults = [];
+
+// Canvas and video sizing
+let camW, camH, debugW;
 
 // Map class labels to URLs
 const labelToUrl = {
@@ -18,6 +22,9 @@ function preload() {
 }
 
 function setup() {
+  camW = Math.floor(windowWidth * 0.8);
+  camH = windowHeight;
+  debugW = windowWidth - camW;
   let canvas = createCanvas(windowWidth, windowHeight);
   canvas.parent('canvas-container');
   video = createCapture({
@@ -27,7 +34,7 @@ function setup() {
   }, () => {
     classifyVideo();
   });
-  video.size(windowWidth, windowHeight);
+  video.size(camW, camH);
   video.hide();
   background(0);
   textAlign(CENTER, CENTER);
@@ -38,12 +45,32 @@ function setup() {
 
 function draw() {
   background(0);
+  // Draw camera feed on left 80%
   if (video && video.loadedmetadata) {
-    image(video, 0, 0, width, height);
+    image(video, 0, 0, camW, camH);
   }
+  // Draw debug panel background
+  fill(30, 30, 30, 220);
+  noStroke();
+  rect(camW, 0, debugW, height);
+
+  // Debug: Show all class similarities in the right panel
+  fill(0, 255, 0);
+  textSize(18);
+  textAlign(LEFT, TOP);
+  let y = 30;
+  let x = camW + 20;
+  text('Class Similarities:', x, y);
+  y += 32;
+  for (let i = 0; i < allResults.length; i++) {
+    let c = allResults[i];
+    text(`${c.label}: ${(c.confidence*100).toFixed(2)}%`, x, y);
+    y += 28;
+  }
+  // Show top label at the bottom right
   fill(255, 0, 0);
   textSize(18);
-  textAlign(RIGHT);
+  textAlign(RIGHT, BOTTOM);
   text(label + (confidence ? ` (${(confidence*100).toFixed(1)}%)` : ''), width - 10, height - 10);
 }
 
@@ -58,6 +85,7 @@ function gotResult(error, results) {
   }
   label = results[0].label;
   confidence = results[0].confidence;
+  allResults = results;
   // Redirect if confidence is high and not redirected recently
   if (confidence > 0.95 && labelToUrl[label] && Date.now() - lastRedirect > redirectDelay) {
     window.location.href = labelToUrl[label];
@@ -67,8 +95,11 @@ function gotResult(error, results) {
 }
 
 function windowResized() {
+  camW = Math.floor(windowWidth * 0.8);
+  camH = windowHeight;
+  debugW = windowWidth - camW;
   resizeCanvas(windowWidth, windowHeight);
   if (video) {
-    video.size(windowWidth, windowHeight);
+    video.size(camW, camH);
   }
 }
