@@ -1,9 +1,11 @@
 let video;
 let cameraEnabled = false;
 let permissionAsked = false;
+let cameraBtn;
+let canvas;
 
 function setup() {
-  let canvas = createCanvas(600, 450);
+  canvas = createCanvas(windowWidth, windowHeight);
   canvas.parent('canvas-container');
   background(0);
   textAlign(CENTER, CENTER);
@@ -27,30 +29,59 @@ function draw() {
 
 function createCameraButton() {
   if (!permissionAsked) {
-    const btn = createButton('Enable Camera');
-    btn.position(width/2 - 60, height/2 + 30);
-    btn.mousePressed(() => {
-      requestCameraAccess(btn);
+    cameraBtn = createButton('Enable Camera');
+    cameraBtn.style('font-size', '20px');
+    cameraBtn.style('padding', '12px 24px');
+    cameraBtn.position(width/2 - 80, height/2 + 30);
+    cameraBtn.mousePressed(() => {
+      requestCameraAccess(cameraBtn);
     });
     permissionAsked = true;
   }
 }
 
 function requestCameraAccess(btn) {
-  // Try to get user media
-  navigator.mediaDevices.getUserMedia({ video: true })
+  // Try to get user media with back camera
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
     .then(function(stream) {
       if (video) video.remove();
-      video = createCapture(VIDEO, () => {
+      video = createCapture({
+        video: {
+          facingMode: { exact: "environment" }
+        }
+      }, () => {
         cameraEnabled = true;
         btn.remove();
       });
-      video.size(600, 450);
+      video.size(windowWidth, windowHeight);
       video.hide();
     })
     .catch(function(err) {
-      cameraEnabled = false;
-      fill(255,0,0);
-      text('Camera access denied', width/2, height/2 + 60);
+      // fallback to default camera if environment not available
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(function(stream) {
+          if (video) video.remove();
+          video = createCapture(VIDEO, () => {
+            cameraEnabled = true;
+            btn.remove();
+          });
+          video.size(windowWidth, windowHeight);
+          video.hide();
+        })
+        .catch(function(err2) {
+          cameraEnabled = false;
+          fill(255,0,0);
+          text('Camera access denied', width/2, height/2 + 60);
+        });
     });
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  if (video) {
+    video.size(windowWidth, windowHeight);
+  }
+  if (cameraBtn) {
+    cameraBtn.position(width/2 - 80, height/2 + 30);
+  }
 }
