@@ -1,87 +1,74 @@
 let video;
-let cameraEnabled = false;
-let permissionAsked = false;
-let cameraBtn;
-let canvas;
+let classifier;
+let label = "";
+let confidence = 0;
+let lastRedirect = 0;
+const redirectDelay = 5000; // ms
+
+// Map class labels to URLs
+const labelToUrl = {
+  "Class 1": "https://example.com/first",
+  "Class 2": "https://example.com/second",
+  "Class 3": "https://example.com/third"
+};
+
+function preload() {
+  // Load your Teachable Machine model
+  classifier = ml5.imageClassifier('https://teachablemachine.withgoogle.com/models/ZiBmsUhJE/model.json');
+}
 
 function setup() {
-  canvas = createCanvas(windowWidth, windowHeight);
+  let canvas = createCanvas(windowWidth, windowHeight);
   canvas.parent('canvas-container');
+  video = createCapture({
+    video: {
+      facingMode: { exact: "environment" }
+    }
+  }, () => {
+    classifyVideo();
+  });
+  video.size(windowWidth, windowHeight);
+  video.hide();
   background(0);
   textAlign(CENTER, CENTER);
   textSize(24);
   fill(255);
-  text('Please enable camera to start', width/2, height/2);
-  createCameraButton();
+  text('Loading camera...', width/2, height/2);
 }
 
 function draw() {
-  if (cameraEnabled && video) {
-    background(0);
+  background(0);
+  if (video && video.loadedmetadata) {
     image(video, 0, 0, width, height);
-  } else if (!permissionAsked) {
-    background(0);
-    fill(255);
-    textSize(24);
-    text('Please enable camera to start', width/2, height/2);
   }
+  fill(255, 0, 0);
+  textSize(18);
+  textAlign(RIGHT);
+  text(label + (confidence ? ` (${(confidence*100).toFixed(1)}%)` : ''), width - 10, height - 10);
 }
 
-function createCameraButton() {
-  if (!permissionAsked) {
-    cameraBtn = createButton('Enable Camera');
-    cameraBtn.style('font-size', '20px');
-    cameraBtn.style('padding', '12px 24px');
-    cameraBtn.position(width/2 - 80, height/2 + 30);
-    cameraBtn.mousePressed(() => {
-      requestCameraAccess(cameraBtn);
-    });
-    permissionAsked = true;
-  }
+function classifyVideo() {
+  classifier.classify(video, gotResult);
 }
 
-function requestCameraAccess(btn) {
-  // Try to get user media with back camera
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
-    .then(function(stream) {
-      if (video) video.remove();
-      video = createCapture({
-        video: {
-          facingMode: { exact: "environment" }
-        }
-      }, () => {
-        cameraEnabled = true;
-        btn.remove();
-      });
-      video.size(windowWidth, windowHeight);
-      video.hide();
-    })
-    .catch(function(err) {
-      // fallback to default camera if environment not available
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(function(stream) {
-          if (video) video.remove();
-          video = createCapture(VIDEO, () => {
-            cameraEnabled = true;
-            btn.remove();
-          });
-          video.size(windowWidth, windowHeight);
-          video.hide();
-        })
-        .catch(function(err2) {
-          cameraEnabled = false;
-          fill(255,0,0);
-          text('Camera access denied', width/2, height/2 + 60);
-        });
-    });
+function gotResult(error, results) {
+  if (error) {
+    console.error(error);
+    return;
+  }
+  label = results[0].label;
+  confidence = results[0].confidence;
+  // Redirect if confidence is high and not redirected recently
+  if (confidence > 0.95 && labelToUrl[label] && Date.now() - lastRedirect > redirectDelay) {
+    window.location.href = labelToUrl[label];
+    lastRedirect = Date.now();
+  }
+  classifyVideo();
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   if (video) {
     video.size(windowWidth, windowHeight);
-  }
-  if (cameraBtn) {
-    cameraBtn.position(width/2 - 80, height/2 + 30);
   }
 }
